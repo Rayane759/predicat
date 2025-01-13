@@ -14,6 +14,8 @@ from fastapi import FastAPI, Query
 from typing_extensions import Literal
 from utils_ddc import predict_using_model, preprocess_text
 
+from cache_manager import CacheManager
+
 
 def read_yaml(file):
     with open(file, "r") as stream:
@@ -133,3 +135,23 @@ async def label_description(
         item = item.upper()
         output[item] = full_dict.get(item, None)
     return output
+
+
+cache_manager = CacheManager()
+async def predict_label(
+    q: List[str] = Query(
+        ...,
+        title="query string",
+        description="Description of the product to be classified",
+    ),
+    k: int = Query(
+        1, title="top-K", description="Specify number of predictions to be displayed"
+    ),
+    v: Optional[bool] = Query(
+        False, title="verbosity", description="If True, add the label of code category"
+    ),
+    n: Literal["na2008", "coicop", "na2008_old", "all"] = Query(
+        "all", title="nomenclature", description="Classification system desired"
+    ),
+):
+    return cache_manager.get_in_cache_else_return(predict_label_core(q=q,k=k,v=v,n=n),"predict_label_core",q)
