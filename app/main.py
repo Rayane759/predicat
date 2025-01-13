@@ -35,6 +35,32 @@ app = FastAPI(
 )
 
 
+def predict_label_core(q:str,k:int,v:Optional[bool],n:Literal["na2008", "coicop", "na2008_old", "all"]):
+    if n == "all":
+        n = [i for i in config["models"]]
+    if type(n) == str:
+        n = [n]
+    output = {}
+
+    for nomenclature in n:
+        output[nomenclature] = {}
+        descriptions = sorted(set(q), key=q.index)
+        preprocessed_descriptions = [
+            preprocess_text(description) for description in descriptions
+        ]
+        preds = predict_using_model(
+            preprocessed_descriptions, model=models[nomenclature], k=k
+        )
+        if v:
+            for pred in preds:
+                for pred_k in pred:
+                    pred_k["label"] += " | " + full_dict.get(pred_k["label"], "")
+        for description, pred in zip(descriptions, preds):
+            output[nomenclature][description] = pred
+    
+    return output
+
+
 @app.on_event("startup")
 def startup_event():
     global models, config, full_dict
@@ -77,29 +103,7 @@ async def predict_label(
         "all", title="nomenclature", description="Classification system desired"
     ),
 ):
-    if n == "all":
-        n = [i for i in config["models"]]
-    if type(n) == str:
-        n = [n]
-    output = {}
-
-    for nomenclature in n:
-        output[nomenclature] = {}
-        descriptions = sorted(set(q), key=q.index)
-        preprocessed_descriptions = [
-            preprocess_text(description) for description in descriptions
-        ]
-        preds = predict_using_model(
-            preprocessed_descriptions, model=models[nomenclature], k=k
-        )
-        if v:
-            for pred in preds:
-                for pred_k in pred:
-                    pred_k["label"] += " | " + full_dict.get(pred_k["label"], "")
-        for description, pred in zip(descriptions, preds):
-            output[nomenclature][description] = pred
-
-    return output
+    return predict_label_core(q=q,k=k,v=v,n=n)
 
 
 @app.get("/process")
